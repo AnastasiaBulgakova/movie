@@ -1,112 +1,94 @@
-import React, {  useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import ApiServ from "../../services/ApiServ";
-import { format } from "date-fns";
-import { Col, Row, Button, Rate } from "antd";
-import { MehOutlined, LoadingOutlined } from '@ant-design/icons';
+import { LoadingOutlined } from "@ant-design/icons";
+import { Pagination } from "antd";
 import "./movieCard.css";
 import ErrorIndicator from "../errorIndicator/ErrorIndicator";
-import { Pagination} from 'antd'
 import MovieItem from "../movieItem/MovieItem";
- const MovieCard = ({ searchValue }) => {
-const swapiServce = ApiServ();
-const [movies, setMovies] = useState([]);
-const [genres, setGenres] = useState({});
-const [loading, setLoading] = useState(false);
-const [err, setErr] = useState(false);
-const [isOffline, setIsOffline] = useState(!navigator.onLine);
-const [noMovieError, setNoMovieError] = useState(false);
-const[pages, setPages] = useState(1);
-const [currentPage, setCurrentPage] = useState(1); 
-const [guestSessionId, setGuestSessionId] = useState(null);;
 
+const MovieCard = ({ searchValue }) => {
+  const swapiServce = ApiServ();
+  const [movies, setMovies] = useState([]);
+  const [genres, setGenres] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState(false);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [noMovieError, setNoMovieError] = useState(false);
+  const [pages, setPages] = useState(1);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [guestSessionId, setGuestSessionId] = useState(null);
 
-useEffect(() => {
-    updateGenre();
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const genresData = await swapiServce.getGenre();
+        const genresMap = {};
+        genresData.genres.forEach((genre) => {
+          genresMap[genre.id] = genre.name;
+        });
+        setGenres(genresMap);
+
+        const sessionId = await swapiServce.startGuestSession();
+        setGuestSessionId(sessionId);
+        localStorage.setItem("guestSessionId", sessionId);
+      } catch (e) {
+        setErr(true);
+      }
+    };
+
+    init();
     window.addEventListener("online", handleConnectionStatus);
     window.addEventListener("offline", handleConnectionStatus);
-    swapiServce.startGuestSession().then((id) => {
-      setGuestSessionId(id);
-    localStorage.setItem('guestSessionId', id)})
     return () => {
-        window.removeEventListener("online", handleConnectionStatus);
-        window.removeEventListener("offline", handleConnectionStatus);
-     }
-},[]);
-useEffect(() => {
-    if (!searchValue) {
-      setNoMovieError(false); // Нет ошибки, если пользователь не ввел запрос
-      return;
-    }
-    if (!movies || movies.length === 0) {
-      setNoMovieError(true); // Нет фильмов, устанавливаем ошибку
-    } else {
-      setNoMovieError(false); // Есть фильмы, сбрасываем ошибку
-    }
-  }, [movies, searchValue]);
-  
-useEffect(() =>{
-    setCurrentPage(1)
-    updateMovie(searchValue, 1)
-}, [searchValue]);
+      window.removeEventListener("online", handleConnectionStatus);
+      window.removeEventListener("offline", handleConnectionStatus);
+    };
+  }, []);
 
-const handleConnectionStatus = () => {
- setIsOffline(!navigator.onLine)
+  useEffect(() => {
+    if (searchValue) {
+      setCurrentPage(1);
+      fetchMovies(searchValue, 1);
+    }
+  }, [searchValue]);
+
+  const handleConnectionStatus = () => {
+    setIsOffline(!navigator.onLine);
   };
 
-  const updateMovie = (val, pages) => {
-   
+  const fetchMovies = async (query, page) => {
+    setLoading(true);
+    setErr(false);
+    setNoMovieError(false);
 
-    swapiServce
-      .getMovie(val, pages)
-      .then((movie) => {
+    try {
+      const response = await swapiServce.getMovie(query, page);
+
+      if (response.results && response.results.length > 0) {
+        setMovies(response.results);
+        setPages(response.total_pages);
         setNoMovieError(false);
-        if (movie.results && movie.results.length > 0) {
-          setPages(movie.total_pages)
-          setMovies(movie.results);
-          setNoMovieError(false);
-          console.log(movie);
-         
-        } else {
-          setMovies([]); 
-          setNoMovieError(true);
-        }
-        setLoading(false);
-      })
-      .catch(() => {
-        setErr(true);
-        setLoading(false);
-      });
+      } else {
+        setMovies([]);
+        setNoMovieError(true);
+      }
+    } catch (e) {
+      setErr(true);
+    } finally {
+      setLoading(false);
+    }
   };
-  
-  
 
- const updateGenre = () =>{
-    swapiServce.getGenre().then((data) => {
-      const genresMap = {};
-      data.genres.forEach((genre) => {
-        genresMap[genre.id] = genre.name;
-      });
-      setGenres(genresMap);
-     
-    })
-   
-  }
+  const addToRated = (movieId, rating) => {
+    if (!guestSessionId) return;
+    return swapiServce.rateMovie(movieId, rating, guestSessionId).catch(() => (
+      <ErrorIndicator />
+    ));
+  };
 
+  // === UI ===
 
-
-const addToRated = (movieId, rating) => {
-  if(!guestSessionId){
-    return;
-  }
- try{ 
-  return swapiServce.rateMovie(movieId, rating, guestSessionId)}
- catch(e){
-  return( <ErrorIndicator/>)
- }
-}
-
-
-if (isOffline) {
+  if (isOffline) {
     return (
       <div className="offline-indicator">
         <h3>No Internet Connection</h3>
@@ -114,59 +96,54 @@ if (isOffline) {
       </div>
     );
   }
-if(loading) {
-    return(
-        <div style={{ textAlign: 'center', padding: '20px' }}>
-        <LoadingOutlined style={{ fontSize: '50px' }} spin />
+
+  if (loading) {
+    return (
+      <div style={{ textAlign: "center", padding: "20px" }}>
+        <LoadingOutlined style={{ fontSize: "50px" }} spin />
       </div>
-    )
-}
+    );
+  }
 
-if(err){
-    return <ErrorIndicator/>
-}
-if(noMovieError){
-    return(
-        <div>
+  if (err) {
+    return <ErrorIndicator />;
+  }
+
+  if (noMovieError) {
+    return (
+      <div>
         <p>There's no such movie</p>
-    </div>
-    )
-}
+      </div>
+    );
+  }
 
- else if(searchValue){
-   
+  if (searchValue && movies.length > 0) {
+    return (
+      <>
+        {movies.map((movie) => (
+          <MovieItem
+            key={movie.id}
+            movie={movie}
+            genres={genres}
+            showRating={true}
+            onRate={addToRated}
+          />
+        ))}
 
-    return(
-            <>
-              {movies.map((movie, index) => (
-              <MovieItem
-              key={index}
-              movie={movie}
-              genres={genres}
-              showRating={true}
-              onRate={addToRated}/> 
-               ))}
-             {movies.length > 0 && (
-              <Pagination
-    current={currentPage}
-    total={pages+'0'}
-    align="center"
-    style={{ marginBottom: "10px" }}
-    onChange={(page) => {
-        setCurrentPage(page)
-        updateMovie(searchValue, page);
-    }}
-  />
-)}
+        <Pagination
+          current={currentPage}
+          total={pages * 10}
+          style={{ marginBottom: "10px", textAlign: "center" }}
+          onChange={(page) => {
+            setCurrentPage(page);
+            fetchMovies(searchValue, page);
+          }}
+        />
+      </>
+    );
+  }
 
-            </>
- );
-    
-}
-
-
-}
-
-
+  return null;
+};
 
 export default MovieCard;
