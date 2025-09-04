@@ -20,7 +20,6 @@ timer = setTimeout(() => {
     }
 }
 const handeSearchChange = useCallback(debounce((value) => {
-
     setSearchValue(value)
 },1000), []);
 return(

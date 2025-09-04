@@ -31,7 +31,8 @@ const MovieCard = ({ searchValue }) => {
         const sessionId = await swapiServce.startGuestSession();
         setGuestSessionId(sessionId);
         localStorage.setItem("guestSessionId", sessionId);
-      } catch (e) {
+      }catch (e) {
+        console.error("Error in init:", e);
         setErr(true);
       }
     };
@@ -72,7 +73,8 @@ const MovieCard = ({ searchValue }) => {
         setMovies([]);
         setNoMovieError(true);
       }
-    } catch (e) {
+    }catch (e) {
+      console.error("Error in init:", e);
       setErr(true);
     } finally {
       setLoading(false);
@@ -85,8 +87,6 @@ const MovieCard = ({ searchValue }) => {
       <ErrorIndicator />
     ));
   };
-
-  // === UI ===
 
   if (isOffline) {
     return (
